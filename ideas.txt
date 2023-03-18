@@ -1,0 +1,20 @@
+output od -1 do 1
+-1 znaczy że sprzedajemy 100% portfolio
+1 znaczy ze za całe wolne środki kupujemy akcji
+
+trening:
+trenujemy encoder i decoder do predykcji wartości ceny jutro
+- encoder: wejście to wektor z wartościami ceny z ostatnich 6 mies + 150 wskazników analizy technicznej
+- dekoder: wyjście z enkodera
+- loss: MSE, MAPE, sMAPE, MAE
+
+potem ucinamy dekoder i doklejamy sieć do podejmowania decyzji
+trenujemy mechanizmem ppo
+
+action space: 3 akcje
+0: nic nie robimy
+0 < x <= 1: kupujemy akcji za 100*x% wolnych środków
+-1 <= x < 0: sprzedajemy 100*x% posiadanych akcji
+
+
+ew: 0-1: ile procent naszego portfolio chcemy mieć w akcji
