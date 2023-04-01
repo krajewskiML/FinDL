@@ -108,10 +108,24 @@ def sliding_window(df, window_size=10):
 
 
 # define encoder class which will take in a sliding window of stock data 2d tensor and transform it into a 1d tensor
-class LinearEncoder(nn.Module):
-    def __init__(self, input_dims: Tuple[int, int], encoding_dim: int, h_dims: List[int]):
-        super(LinearEncoder, self).__init__()
-        # define list of hidden layers
+class ConvEncoder(nn.Module):
+
+    def __init__(self, input_dims: Tuple[int, int],  encoding_dim: int, h_dims: List[int]):
+        super().__init__()
+
+        ### Convolutional section
+        self.encoder_cnn = nn.Sequential(
+            nn.Conv2d(1, 8, 3, stride=1, padding=1),
+            nn.ReLU(True),
+            nn.Conv2d(8, 16, 3, stride=1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.Conv2d(16, 32, 3, stride=1, padding=0),
+            nn.ReLU(True)
+        )
+
+        ### Flatten layer
+        self.flatten = nn.Flatten(start_dim=1)
         self.h_layers = nn.ModuleList()
         # define list of hidden layer dimensions
         self.h_dims = [input_dims[0] * input_dims[1], *h_dims, encoding_dim]
@@ -123,9 +137,8 @@ class LinearEncoder(nn.Module):
         self.out_layer = nn.Linear(self.h_dims[-1], encoding_dim)
 
     def forward(self, x):
-        # flatten input
-        x = x.view(x.shape[0], -1)
-        # loop through all hidden layers
+        x = self.encoder_cnn(x)
+        x = self.flatten(x)
         for layer in self.h_layers:
             # apply linear transformation
             x = layer(x)
@@ -136,45 +149,50 @@ class LinearEncoder(nn.Module):
         return x
 
 
-# define decoder class which will take in a 1d tensor and transform it into a 2d tensor
-class LinearDecoder(nn.Module):
-    def __init__(self, input_dim: int, output_dims: Tuple[int, int], h_dims: List[int]):
-        super(LinearDecoder, self).__init__()
-        # define list of hidden layers
-        self.h_layers = nn.ModuleList()
-        self.output_dims = output_dims
-        # define list of hidden layer dimensions
-        self.h_dims = [input_dim, *h_dims, output_dims[0] * output_dims[1]]
-        # loop through all hidden layers
-        for i in range(len(self.h_dims) - 1):
-            # add linear transformation to list of hidden layers
-            self.h_layers.append(nn.Linear(self.h_dims[i], self.h_dims[i + 1]))
-        # define output layer
-        self.out_layer = nn.Linear(self.h_dims[-1], output_dims[0] * output_dims[1])
+class ConvDecoder(nn.Module):
+
+    def __init__(self, encoded_space_dim, input_dim):
+        super().__init__()
+        self.decoder_lin = nn.Sequential(
+            nn.Linear(encoded_space_dim, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 3 * 3 * 32),
+            nn.ReLU(True)
+        )
+
+        self.unflatten = nn.Unflatten(dim=1,
+                                      unflattened_size=(32, 3, 3))
+
+        self.decoder_conv = nn.Sequential(
+            nn.ConvTranspose2d(32, 16, 3,
+                               stride=2, output_padding=0),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(16, 8, 3, stride=2,
+                               padding=1, output_padding=1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(8, 1, 3, stride=2,
+                               padding=1, output_padding=1)
+        )
 
     def forward(self, x):
-        # loop through all hidden layers
-        for layer in self.h_layers:
-            # apply linear transformation
-            x = layer(x)
-            # apply activation function
-            x = torch.sigmoid(x)
-        # apply linear transformation to output layer
-        x = self.out_layer(x)
-        # reshape output
-        x = x.view(x.size(0), *self.output_dims)
+        x = self.decoder_lin(x)
+        x = self.unflatten(x)
+        x = self.decoder_conv(x)
+        x = torch.sigmoid(x)
         return x
 
 
 # define autoencoder class which will take in a sliding window of stock data 2d tensor
 # and output a 2d tensor of the same size
-class LinearAE(nn.Module):
+class ConvAE(nn.Module):
     def __init__(self, input_dim, encoding_dim, h_dims):
-        super(LinearAE, self).__init__()
+        super(ConvAE, self).__init__()
         # define encoder
-        self.encoder = LinearEncoder(input_dim, encoding_dim, h_dims)
+        self.encoder = ConvEncoder(input_dim, encoding_dim, h_dims)
         # define decoder
-        self.decoder = LinearDecoder(encoding_dim, input_dim, h_dims)
+        self.decoder = ConvDecoder(encoding_dim, input_dim)
 
     def forward(self, x):
         z = self.encoder(x)
@@ -201,22 +219,22 @@ if __name__ == '__main__':
     all_data_dataset = SlidingWindowDataset(sp500_df, window_size=30)
     all_data_dataloader = DataLoader(all_data_dataset, batch_size=512, shuffle=False)
 
-    linear_ae = LinearAE(
+    conv_ae = ConvAE(
         input_dim=(30, sp500_df.shape[1]),
         encoding_dim=32,
-        h_dims=[512, 128, 64]
+        h_dims=[512, 128, 64],
     )
     # move model to GPU
-    linear_ae = linear_ae.to('cuda')
+    conv_ae = conv_ae.to('cuda')
 
     epochs = 200
     lr = 3e-4
-    optimizer = torch.optim.Adam(linear_ae.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(conv_ae.parameters(), lr=lr)
     losses = []
     for epoch in range(epochs):
         for batch in all_data_dataloader:
             batch = batch.to('cuda')
-            output = linear_ae(batch)
+            output = conv_ae(batch)
             loss = nn.functional.mse_loss(output, batch)
             optimizer.zero_grad()
             loss.backward()
