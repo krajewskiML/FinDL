@@ -279,29 +279,52 @@ class ForexEnv(TradingEnv):
 
 class SP500TradingEnv(gym.Env):
 
-    def __init__(self, sp500_df, window_len=10):
-        self.sp500_df = sp500_df
-        self.features = sp500_df.shape[1]
+    def __init__(self, sp500_df_observations, sp500_df_real_prices, window_len=10):
+        self.sp500_real_prices = sp500_df_real_prices
+        self.sp500_df_features = sp500_df_observations
+        self.features = sp500_df_observations.shape[1]
         self.window_len = window_len
-        # TODO: jeżeli będziemy mieli ten jeden output to nie ma sensu używać Discrete tylko Box
-        self.action_space = gym.spaces.Box(low=-1, high=1, dtype=np.float32, shape=(1,))
-        # TODO: narazie low i high są takie same dla każdego indykatora, ale można to ustalić w zależności od indykatora
-        self.observation_space = gym.spaces.Box(low=-10, high=10, shape=(window_len, self.features))
+        self.action_space = gym.spaces.Box(low=0, high=1, dtype=np.float32, shape=(1,))
+        low = sp500_df_observations.min(axis=0)
+        low = np.tile(low, (window_len, 1))
+        high = sp500_df_observations.max(axis=0)
+        high = np.tile(high, (window_len, 1))
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape=(window_len, self.features))
 
         # episode variables
         self.episode_tick = 0
-        self.episode_reward = 0
-        self.episode_profit = 0
-        self.portfolio_value = 1.0 # TODO: to powinno być ustalane w zależności od stanu konta / strategii która wybierzemy
-        self.end_tick = len(sp500_df) - 1
+        self.cash = 1.0
+        self.sp500 = 0.0
+        self.portfolio_value = 1.0
+        self.end_tick = sp500_df_observations.shape[0] - 1 - window_len
         self.done = False
-        self.previous_portfolio_value = 0
+        self.previous_portfolio_value = 1.0
 
+        self.in_cash = []
+        self.in_sp500 = []
+        self.portfolio_values = []
+
+    def reset(self):
+        self.episode_tick = 0
+        self.cash = 1.0
+        self.sp500 = 0.0
+        self.portfolio_value = 1.0
+        self.done = False
+        self.previous_portfolio_value = 1.0
+
+        self.in_cash = []
+        self.in_sp500 = []
+        self.portfolio_values = []
+
+        return self.get_observation()
 
     def step(self, action):
         self.episode_tick += 1
         # perform action
         self.perform_action(action)
+
+        # calculate the portfolio after whole day of trading so adjust the portfolio value by close price
+        self.calculate_portfolio_value_after_close()
 
         # calculate reward
         reward = self.calculate_reward()
@@ -310,16 +333,45 @@ class SP500TradingEnv(gym.Env):
 
         done = self.episode_tick == self.end_tick
 
-        info = {'episode_reward': self.episode_reward}
+        info = {'episode_reward': reward}
 
         return observation, reward, done, info
 
 
     def get_observation(self):
-        return self.sp500_df.iloc[self.episode_tick:self.episode_tick + self.window_len].to_numpy()
+        return self.sp500_df_features.iloc[self.episode_tick:self.episode_tick + self.window_len].to_numpy()
 
     def perform_action(self, action):
-        pass
+        # calculate portfolio value
+        self.portfolio_value = self.cash + self.sp500  # simulate cashout of SP500
+        self.sp500 = self.portfolio_value * action  # simulate buying SP500
+        self.cash = self.portfolio_value - self.sp500  # get cash after buying SP500
+        self.in_cash.append(self.cash)
+        self.in_sp500.append(self.sp500)
+
+    def calculate_portfolio_value_after_close(self):
+        self.previous_portfolio_value = self.portfolio_value
+        self.sp500 *= self.sp500_real_prices.iloc[self.episode_tick + self.window_len]['close'] / self.sp500_real_prices.iloc[self.episode_tick + self.window_len - 1]['close']
+        self.portfolio_value = self.cash + self.sp500
+        self.portfolio_values.append(self.portfolio_value)
 
     def calculate_reward(self):
-        pass
+        # calculate reward as difference between portfolio value after close and portfolio value before open
+        return float((self.portfolio_value - self.previous_portfolio_value) / self.previous_portfolio_value)
+
+    def render(self, mode="human"):
+        print(f"Episode tick: {self.episode_tick}")
+        print(f"Portfolio value: {self.portfolio_value}")
+        print(f"SP500: {self.sp500}")
+        print(f"Cash: {self.cash}")
+        print(f"Done: {self.done}")
+
+    def plot_portfolio_and(self):
+        # plot close prices
+        plt.plot(self.sp500_real_prices['close'], label='SP500 real close')
+        # plot portfolio values, SP500 and cash
+        plt.plot(self.portfolio_values, label='Portfolio')
+        plt.plot(self.in_sp500, label='SP500 in portfolio')
+        plt.plot(self.in_cash, label='Cash in portfolio')
+        plt.legend()
+        plt.show()

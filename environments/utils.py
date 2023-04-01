@@ -11,9 +11,9 @@ import numpy as np
 from typing import List, Tuple, Dict, Union, Optional
 import gc
 
-def create_ta_features(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', interval_='1d', fillna=True, scale_to_std=True, fill_weekends=True):
+def get_data(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', interval_='1d'):
     """
-    Creates dataframe with technical analysis features
+    Downloads data from Yahoo Finance and creates technical analysis features
     :param ticker: ticker symbol to download data for (default is S&P 500)
     :param start_: start date
     :param end_: end date
@@ -29,6 +29,22 @@ def create_ta_features(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', i
     df.rename(columns={"Open": "open", "Adj Close": "close", "High": "high", "Low": "low", "Volume": "volume"}, inplace=True)
     # drop close column
     df.drop("Close", inplace=True, axis=1)
+    return df
+
+def create_ta_features(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', interval_='1d', fillna=True, scale_to_std=True, fill_weekends=False):
+    """
+    Creates dataframe with technical analysis features
+    :param ticker: ticker symbol to download data for (default is S&P 500)
+    :param start_: start date
+    :param end_: end date
+    :param interval_: data frequency
+    :param fillna: whether to fill in missing values
+    :param scale_to_std: whether to scale to standard deviation
+    :param fill_weekends: whether to fill in weekends
+    :return: dataframe with technical analysis features
+    """
+    # download data
+    df = get_data(ticker, start_, end_, interval_)
     # fill weekends
     if fill_weekends:
         df = df.resample('D').ffill()
