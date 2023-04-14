@@ -185,6 +185,8 @@ def create_data(ticker='^GSPC', start_='2005-01-01', end_='2022-12-31', interval
     if fill_weekends:
         data_df = data_df.resample('D').ffill()
 
+    data_df = add_ta_features(data_df)
+
     # add technical analysis features
     if add_time_features_:
         data_df = add_time_features(data_df)
