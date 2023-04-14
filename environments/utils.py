@@ -187,10 +187,6 @@ def create_data(ticker='^GSPC', start_='2005-01-01', end_='2022-12-31', interval
 
     data_df = add_ta_features(data_df)
 
-    # add technical analysis features
-    if add_time_features_:
-        data_df = add_time_features(data_df)
-
     # fill in missing values
     if fillna:
         data_df.fillna(method='bfill', inplace=True)
@@ -208,4 +204,7 @@ def create_data(ticker='^GSPC', start_='2005-01-01', end_='2022-12-31', interval
     if shuffle:
         train_df = train_df.sample(frac=1)
         test_df = test_df.sample(frac=1)
+    if add_time_features_:
+        train_df = add_time_features(train_df)
+        test_df = add_time_features(test_df)
     return train_df, test_df
