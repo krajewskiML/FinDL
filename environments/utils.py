@@ -160,8 +160,19 @@ def add_time_features(df_):
     return df_
 
 
-def create_data(ticker='^GSPC', start_='2005-01-01', end_='2022-12-31', interval_='1d', fillna=True, scale_to_std=True,
-                fill_weekends=False, add_time_features_=True, test_split=0.2, shuffle=True):
+def create_data(
+    ticker='^GSPC',
+    start_='2005-01-01',
+    end_='2022-12-31',
+    interval_='1d',
+    fillna=True,
+    scale_to_std=True,
+    scale_min_max=False,
+    fill_weekends=False,
+    add_time_features_=True,
+    test_split=0.2,
+    shuffle=True
+):
     """
     Creates dataframe with technical analysis features
     :param ticker: ticker symbol to download data for (default is S&P 500)
@@ -187,6 +198,9 @@ def create_data(ticker='^GSPC', start_='2005-01-01', end_='2022-12-31', interval
 
     data_df = add_ta_features(data_df)
 
+    # drop QSTICK column
+    data_df.drop("QSTICK", inplace=True, axis=1)
+
     # add technical analysis features
     if add_time_features_:
         data_df = add_time_features(data_df)
@@ -205,6 +219,15 @@ def create_data(ticker='^GSPC', start_='2005-01-01', end_='2022-12-31', interval
         mean_ = train_df.mean()
         train_df = (train_df - mean_) / std_
         test_df = (test_df - mean_) / std_
+
+    # scale to min max, by column
+    if scale_min_max:
+        min_ = train_df.min()
+        max_ = train_df.max() * 2 # we multiply by 2 to make sure we don't have any values greater than 1 in the future
+        # print shape of min_ and max_
+        print(min_.shape, max_.shape)
+        train_df = (train_df - min_) / (max_ - min_)
+        test_df = (test_df - min_) / (max_ - min_)
     if shuffle:
         train_df = train_df.sample(frac=1)
         test_df = test_df.sample(frac=1)
