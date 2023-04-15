@@ -125,24 +125,6 @@ def add_ta_features(df_):
             pass
     return df_
 
-
-def add_ta_features(df_):
-    """
-    Adds technical analysis features to dataframe
-    :param df_: dataframe to add technical analysis features to
-    :return: dataframe with technical analysis features
-    """
-    # get all functions in finta
-    finta_functions = [func for func in dir(TA) if callable(getattr(TA, func)) and not func.startswith("__")]
-    # loop through all functions in finta and append the results to the dataframe
-    # skip functions that throw errors
-    for func in finta_functions:
-        try:
-            df_[func] = getattr(TA, func)(df_)
-        except:
-            pass
-    return df_
-
 def add_time_features(df_):
     # get frequency of data
     freq = pd.infer_freq(df_.index)
