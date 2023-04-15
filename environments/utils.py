@@ -170,26 +170,16 @@ def create_data(
     scale_min_max=False,
     fill_weekends=False,
     add_time_features_=True,
-    test_split=0.2,
-    shuffle=True
-):
-    """
-    Creates dataframe with technical analysis features
-    :param ticker: ticker symbol to download data for (default is S&P 500)
-    :param start_: start date
-    :param end_: end date
-    :param interval_: data frequency
-    :param fillna: whether to fill in missing values
-    :param scale_to_std: whether to scale to standard deviation
-    :param fill_weekends: whether to fill in weekends
-    :return: dataframe with technical analysis features
-    """
-    # download data
+    test_split=0.2):
+
     data_df = yf.download(ticker, start_, end_, interval=interval_, progress=False)
-    # rename columns
-    data_df.rename(columns={"Open": "open", "Adj Close": "close", "High": "high", "Low": "low", "Volume": "volume"},
+    # rename and drop columns to match expected input for finta library
+    data_df.rename(columns={"Open": "open",
+                            "Adj Close": "close",
+                            "High": "high",
+                            "Low": "low",
+                            "Volume": "volume"},
                    inplace=True)
-    # drop close column
     data_df.drop("Close", inplace=True, axis=1)
 
     # fill weekends
@@ -198,22 +188,19 @@ def create_data(
 
     data_df = add_ta_features(data_df)
 
-    # drop QSTICK column
     data_df.drop("QSTICK", inplace=True, axis=1)
 
-    # add technical analysis features
-    if add_time_features_:
-        data_df = add_time_features(data_df)
-
-    # fill in missing values
     if fillna:
         data_df.fillna(method='bfill', inplace=True)
         data_df.fillna(method='ffill', inplace=True)
 
+    data_df = data_df.astype('float64')
+
+    # split into train and test
     train_df = data_df.iloc[:int(len(data_df) * (1 - test_split))]
     test_df = data_df.iloc[int(len(data_df) * (1 - test_split)):]
 
-    # scale to standard deviation, by column
+    # scale to std, by column
     if scale_to_std:
         std_ = train_df.std()
         mean_ = train_df.mean()
@@ -222,16 +209,15 @@ def create_data(
 
     # scale to min max, by column
     if scale_min_max:
-        min_ = train_df.min()
-        max_ = train_df.max() * 2 # we multiply by 2 to make sure we don't have any values greater than 1 in the future
-        # print shape of min_ and max_
-        print(min_.shape, max_.shape)
-        train_df = (train_df - min_) / (max_ - min_)
-        test_df = (test_df - min_) / (max_ - min_)
-    if shuffle:
-        train_df = train_df.sample(frac=1)
-        test_df = test_df.sample(frac=1)
+        min_ = train_df.min().array
+        max_ = train_df.max().array * 2
+        scaling_range = max_ - min_
+
+        train_df = (train_df - min_) / scaling_range
+        test_df = (test_df - min_) / scaling_range
+
     if add_time_features_:
         train_df = add_time_features(train_df)
         test_df = add_time_features(test_df)
+
     return train_df, test_df
