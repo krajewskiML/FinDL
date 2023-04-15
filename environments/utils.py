@@ -126,6 +126,23 @@ def add_ta_features(df_):
     return df_
 
 
+def add_ta_features(df_):
+    """
+    Adds technical analysis features to dataframe
+    :param df_: dataframe to add technical analysis features to
+    :return: dataframe with technical analysis features
+    """
+    # get all functions in finta
+    finta_functions = [func for func in dir(TA) if callable(getattr(TA, func)) and not func.startswith("__")]
+    # loop through all functions in finta and append the results to the dataframe
+    # skip functions that throw errors
+    for func in finta_functions:
+        try:
+            df_[func] = getattr(TA, func)(df_)
+        except:
+            pass
+    return df_
+
 def add_time_features(df_):
     # get frequency of data
     freq = pd.infer_freq(df_.index)
@@ -134,16 +151,15 @@ def add_time_features(df_):
         include_weekends = True
     else:
         include_weekends = False
+    # fill weekends
+    if not include_weekends:
+        df_ = df_.resample('D').ffill()
 
     # get number of days in week, month, year
-    if include_weekends:
-        days_in_week = 7
-        days_in_month = 31
-        days_in_year = 365
-    else:
-        days_in_week = 5
-        days_in_month = 21
-        days_in_year = 250
+    days_in_week = 7
+    days_in_month = 31
+    days_in_year = 365
+
     # add weekday, monthday, yearday features
     df_['weekday'] = df_.index.dayofweek
     df_['monthday'] = df_.index.day
@@ -157,6 +173,8 @@ def add_time_features(df_):
     df_['cos_yearday'] = np.cos(2 * np.pi * df_['yearday'] / days_in_year)
     # drop weekday, monthday, yearday features
     df_.drop(['weekday', 'monthday', 'yearday'], inplace=True, axis=1)
+    if not include_weekends:
+        df_ = df_.loc[~df_.index.dayofweek.isin([5, 6])]
     return df_
 
 
