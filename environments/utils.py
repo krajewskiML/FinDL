@@ -231,4 +231,7 @@ def create_data(
     if shuffle:
         train_df = train_df.sample(frac=1)
         test_df = test_df.sample(frac=1)
+    if add_time_features_:
+        train_df = add_time_features(train_df)
+        test_df = add_time_features(test_df)
     return train_df, test_df
