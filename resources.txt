@@ -1,0 +1,8 @@
+Daily inflation-adjusted s&p 500 data, from 1927 to present. $8
+https://macrotrends.dpdcart.com/
+
+Yearly inflation-adjusted s&p 500 data, from 1927 to present, for free
+https://www.macrotrends.net/2324/sp-500-historical-chart-data
+
+How to set up openai gym environment for stock trading
+https://medium.com/@sthanikamsanthosh1994/custom-gym-environment-stock-trading-for-reinforcement-learning-stable-baseline3-629a489d462d
