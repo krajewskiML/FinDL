@@ -25,3 +25,18 @@ jeśli indeks > 75 to sprzedajemy
 zrobił 0.03% rocznie- ale korelacja jest znacząca
 można dodać ten indeks do danych i zobaczyć czy to poprawi wyniki
 
+powstał skrypt do wiuzualizacji strategi bota
+
+eksperymentowaliśmy z róznymi architekturami AE
+najlepiej wypadły AE 3/4 warstwowe
+
+powstał bot który sie przeuczył i zrobił x12 x32 i x70 w 13 lat
+ale na testowych x1.1 w 2 lata
+
+sprawdzaliśmy IOU czyli intersection over union dla przedziałów indykatorów dla zbiorów treningowego i testowego
+największą rozbieżnosc maja ohlc, różne średnie kroczące, generalnie te wskaźniki które są obliczane na podstawie ceny bezwzględnej co ma duży sens
+
+próbowaliśmy wprowadzić skalowanie do m0s1 oknem przesuwnym
+dało to zaskakująco dobre wyniki
+duże okna zachowują kształt rynku ale wygładzają dane
+krótkie okna dają bardzo zaszumione dane
