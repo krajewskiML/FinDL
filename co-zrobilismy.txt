@@ -1,0 +1,27 @@
+pobieranie danych z yahoo finance
+dodawanie indykatorów do danych
+uzupełnianie weekendow
+dodawanie enkodingu czasu do danych
+skalowanie do mean:0 std:1
+mechanizm sliding window
+próba linear AE
+średnio działało
+
+PCA, heatmapa korelacji
+oprócz oczywistych korelacji, brak zaskakujących korelacji
+po przeskalowaniu min max 99% wariancji jest tłumaczone przez 17 z 71 wymiarów
+dane przeskalowane do mean:0 std:1 99% wariancji jest tłumaczone przez 32 z 71 wymiarów
+
+próba Conv AE
+średnio działało
+
+próbowalismy time series transformer z huggingface ale coś nie działało
+
+experimenty z fear greed index
+wygląda obiecująco
+próbowaliśmy prosty algorytm działający odwrotnie do rynku
+jeśli indeks < 25 to kupujemy
+jeśli indeks > 75 to sprzedajemy
+zrobił 0.03% rocznie- ale korelacja jest znacząca
+można dodać ten indeks do danych i zobaczyć czy to poprawi wyniki
+

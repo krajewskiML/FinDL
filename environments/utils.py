@@ -1,9 +1,3 @@
-import torch
-from torch import nn
-from torch.utils.data import Dataset, DataLoader
-from sequitur.models import LINEAR_AE, LSTM_AE
-from sequitur import quick_train
-from sequitur.quick_train import train_model
 import yfinance as yf
 import pandas as pd
 from finta import TA
@@ -93,8 +87,8 @@ def create_data(
     end_='2022-12-31',
     interval_='1d',
     fillna=True,
-    scale_to_std=True,
-    scale_min_max=False,
+    scale_to_std=False,
+    scale_min_max=True,
     fill_weekends=False,
     add_time_features_=True,
     test_split=0.2):

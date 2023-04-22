@@ -18,3 +18,6 @@ action space: 3 akcje
 
 
 ew: 0-1: ile procent naszego portfolio chcemy mieć w akcji
+
+
+dodać fear greed index do danych
