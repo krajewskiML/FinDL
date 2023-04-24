@@ -19,5 +19,9 @@ action space: 3 akcje
 
 ew: 0-1: ile procent naszego portfolio chcemy mieć w akcji
 
+włozyc encoding layer jako feature extractor do sieci do podejmowania decyzji w stable baselines 3
+
+temat artykuly to wplyw redukcji wymiarowosci autenkoderami na wynik modelu RL
+
 
 dodać fear greed index do danych

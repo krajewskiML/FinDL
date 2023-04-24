@@ -43,6 +43,9 @@ def add_ta_features(df_):
             df_[func] = getattr(TA, func)(df_)
         except:
             pass
+
+    # remove QSTICK column
+    df_.drop('QSTICK', inplace=True, axis=1)
     return df_
 
 def add_time_features(df_):
@@ -80,6 +83,66 @@ def add_time_features(df_):
         df_ = df_.loc[original_index]
     return df_
 
+def add_time_features_forex(df_):
+    # do the same as above, but for forex data so include sin and cos of hour and minute
+    # get number of days in week, month, year
+    days_in_week = 7
+    days_in_month = 31
+    days_in_year = 365
+
+    # add weekday, monthday, yearday features
+    df_['weekday'] = df_.index.dayofweek
+    df_['monthday'] = df_.index.day
+    df_['yearday'] = df_.index.dayofyear
+
+    # add sine and cosine of weekday, monthday, yearday features
+    df_['sin_weekday'] = np.sin(2 * np.pi * df_['weekday'] / days_in_week)
+    df_['cos_weekday'] = np.cos(2 * np.pi * df_['weekday'] / days_in_week)
+    df_['sin_monthday'] = np.sin(2 * np.pi * df_['monthday'] / days_in_month)
+    df_['cos_monthday'] = np.cos(2 * np.pi * df_['monthday'] / days_in_month)
+    df_['sin_yearday'] = np.sin(2 * np.pi * df_['yearday'] / days_in_year)
+    df_['cos_yearday'] = np.cos(2 * np.pi * df_['yearday'] / days_in_year)
+
+    # add hour and minute features
+    df_['hour'] = df_.index.hour
+    df_['minute'] = df_.index.minute
+
+    # add sine and cosine of hour and minute features
+    df_['sin_hour'] = np.sin(2 * np.pi * df_['hour'] / 24)
+    df_['cos_hour'] = np.cos(2 * np.pi * df_['hour'] / 24)
+    df_['sin_minute'] = np.sin(2 * np.pi * df_['minute'] / 60)
+    df_['cos_minute'] = np.cos(2 * np.pi * df_['minute'] / 60)
+
+    # drop weekday, monthday, yearday, hour, minute features
+    df_.drop(['weekday', 'monthday', 'yearday', 'hour', 'minute'], inplace=True, axis=1)
+    return df_
+
+def process_forex_data(
+    forex_df: pd.DataFrame,
+    scale_to_std: bool = True,
+    scale_min_max: bool = False,
+    add_time_features_: bool = True,
+    test_split: float = 0.2,
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    # add technical analysis features
+    forex_df = add_ta_features(forex_df)
+
+    forex_df = forex_df.astype('float64')
+
+    # scale data
+    if scale_to_std:
+        forex_df = (forex_df - forex_df.mean()) / forex_df.std()
+    elif scale_min_max:
+        forex_df = (forex_df - forex_df.min().array) / (forex_df.max().array - forex_df.min().array)
+
+    if add_time_features_:
+        forex_df = add_time_features_forex(forex_df)
+
+    # split into train and test
+    train_size = int(len(forex_df) * (1 - test_split))
+    train_df = forex_df.iloc[:train_size]
+    test_df = forex_df.iloc[train_size:]
+    return train_df, test_df
 
 def create_data(
     ticker='^GSPC',
@@ -108,8 +171,6 @@ def create_data(
         data_df = data_df.resample('D').ffill()
 
     data_df = add_ta_features(data_df)
-
-    data_df.drop("QSTICK", inplace=True, axis=1)
 
     if fillna:
         data_df.fillna(method='bfill', inplace=True)

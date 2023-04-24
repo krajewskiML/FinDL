@@ -4,6 +4,10 @@ from gym.utils import seeding
 import numpy as np
 from enum import Enum
 import matplotlib.pyplot as plt
+from typing import List, Tuple
+
+from torch import nn
+import torch
 
 
 class Actions(Enum):
@@ -277,6 +281,7 @@ class ForexEnv(TradingEnv):
 
         return profit
 
+
 class SP500TradingEnv(gym.Env):
 
     def __init__(self, sp500_df_observations, sp500_df_real_prices, window_len=10):
@@ -296,7 +301,7 @@ class SP500TradingEnv(gym.Env):
         self.cash = 1.0
         self.sp500 = 0.0
         self.portfolio_value = 1.0
-        self.end_tick = sp500_df_observations.shape[0] - 1 - window_len
+        self.end_tick = sp500_df_observations.shape[0] - window_len - 1
         self.done = False
         self.previous_portfolio_value = 1.0
 
@@ -319,7 +324,6 @@ class SP500TradingEnv(gym.Env):
         return self.get_observation()
 
     def step(self, action):
-        self.episode_tick += 1
         # perform action
         self.perform_action(action)
 
@@ -328,6 +332,8 @@ class SP500TradingEnv(gym.Env):
 
         # calculate reward
         reward = self.calculate_reward()
+
+        self.episode_tick += 1
 
         observation = self.get_observation()
 
@@ -351,7 +357,7 @@ class SP500TradingEnv(gym.Env):
 
     def calculate_portfolio_value_after_close(self):
         self.previous_portfolio_value = self.portfolio_value
-        self.sp500 *= self.sp500_real_prices.iloc[self.episode_tick + self.window_len]['close'] / self.sp500_real_prices.iloc[self.episode_tick + self.window_len - 1]['close']
+        self.sp500 *= self.sp500_real_prices.iloc[self.episode_tick + self.window_len]['close'] / self.sp500_real_prices.iloc[self.episode_tick + self.window_len]['open']
         self.portfolio_value = self.cash + self.sp500
         self.portfolio_values.append(self.portfolio_value)
 
@@ -375,3 +381,119 @@ class SP500TradingEnv(gym.Env):
         plt.plot(self.in_cash, label='Cash in portfolio')
         plt.legend()
         plt.show()
+
+class SP500TradingEnvAutoencoder(SP500TradingEnv):
+
+    def __init__(self, sp500_df_observations, sp500_df_real_prices, window_len=10, encoder: nn.Module= None, device: str = 'cuda'):
+        super().__init__(sp500_df_observations, sp500_df_real_prices, window_len)
+        self.encoder = encoder
+        self.device = device
+        self.representations = self.calculate_representations()
+
+    def calculate_representations(self) -> List[np.ndarray]:
+        values_on_gpu = torch.tensor(self.sp500_df_features.values, dtype=torch.float32).to(self.device)
+        return [self.encoder(values_on_gpu[tick: tick + self.window_len].view(1, self.window_len * self.features)) for tick in range(0, self.end_tick + 1)]
+
+    def get_observation(self):
+        return self.representations[self.episode_tick]
+
+class EURUSDTradingEnv(gym.Env):
+
+    def __init__(self, eurusd_df_observations, eurusd_df_real_prices, window_len=10):
+        self.eurusd_real_prices = eurusd_df_real_prices
+        self.eurusd_df_features = eurusd_df_observations
+        self.features = eurusd_df_observations.shape[1]
+        self.window_len = window_len
+        self.action_space = gym.spaces.Box(low=0, high=2, dtype=np.float32, shape=(1,))
+        low = eurusd_df_observations.min(axis=0)
+        low = np.tile(low, (window_len, 1))
+        high = eurusd_df_observations.max(axis=0)
+        high = np.tile(high, (window_len, 1))
+        self.observation_space = gym.spaces.Box(low=low, high=high, shape=(window_len, self.features))
+
+        # episode variables
+        self.episode_tick = 0
+        self.cash = 1.0
+        self.eurusd = 0.0
+        self.portfolio_value = 1.0
+        self.end_tick = eurusd_df_observations.shape[0] - 1 - window_len
+        self.done = False
+        self.previous_portfolio_value = 1.0
+
+        self.in_cash = []
+        self.in_eurusd = []
+        self.portfolio_values = []
+
+
+    def reset(self):
+        self.episode_tick = 0
+        self.cash = 1.0
+        self.eurusd = 0.0
+        self.portfolio_value = 1.0
+        self.done = False
+        self.previous_portfolio_value = 1.0
+
+        self.in_cash = []
+        self.in_eurusd = []
+        self.portfolio_values = []
+
+        return self.get_observation()
+
+    def step(self, action):
+        self.episode_tick += 1
+        # perform action
+        self.perform_action(action)
+
+        # calculate the portfolio after whole day of trading so adjust the portfolio value by close price
+        self.calculate_portfolio_value_after_close()
+
+        # calculate reward
+        reward = self.calculate_reward()
+
+        observation = self.get_observation()
+
+        done = self.episode_tick == self.end_tick
+
+        info = {'episode_reward': reward}
+
+        return observation, reward, done, info
+
+    def get_observation(self):
+        return self.eurusd_df_features.iloc[self.episode_tick:self.episode_tick + self.window_len].to_numpy()
+
+    def perform_action(self, action):
+        # calculate portfolio value
+        self.portfolio_value = self.cash + self.eurusd
+        self.eurusd = self.portfolio_value * action
+        self.cash = self.portfolio_value - self.eurusd
+        self.in_cash.append(self.cash)
+        self.in_eurusd.append(self.eurusd)
+
+    def calculate_portfolio_value_after_close(self):
+        self.previous_portfolio_value = self.portfolio_value
+        self.eurusd *= self.eurusd_real_prices.iloc[self.episode_tick + self.window_len]['close'] / self.eurusd_real_prices.iloc[self.episode_tick + self.window_len - 1]['close']
+        self.portfolio_value = self.cash + self.eurusd
+        self.portfolio_values.append(self.portfolio_value)
+
+    def calculate_reward(self):
+        # calculate reward as difference between portfolio value after close and portfolio value before open
+        return float((self.portfolio_value - self.previous_portfolio_value) / self.previous_portfolio_value)
+
+    def render(self, mode="human"):
+        print(f"Episode tick: {self.episode_tick}")
+        print(f"Portfolio value: {self.portfolio_value}")
+        print(f"EURUSD: {self.eurusd}")
+        print(f"Cash: {self.cash}")
+        print(f"Done: {self.done}")
+
+    def plot_portfolio_and(self):
+        # plot close prices
+        plt.plot(self.eurusd_real_prices['close'], label='EURUSD real close')
+        # plot portfolio values, SP500 and cash
+        plt.plot(self.portfolio_values, label='Portfolio')
+        plt.plot(self.in_eurusd, label='EURUSD in portfolio')
+        plt.plot(self.in_cash, label='Cash in portfolio')
+        plt.legend()
+        plt.show()
+
+
