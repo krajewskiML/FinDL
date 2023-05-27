@@ -399,22 +399,26 @@ class SP500TradingEnvAutoencoder(SP500TradingEnv):
 
 class EURUSDTradingEnv(gym.Env):
 
-    def __init__(self, eurusd_df_observations, eurusd_df_real_prices, window_len=10):
+    def __init__(self, eurusd_df_observations, eurusd_df_real_prices, window_len=10, leverage=1, positive_multiplier=100, negative_multiplier=100):
         self.eurusd_real_prices = eurusd_df_real_prices
         self.eurusd_df_features = eurusd_df_observations
         self.features = eurusd_df_observations.shape[1]
         self.window_len = window_len
-        self.action_space = gym.spaces.Box(low=0, high=2, dtype=np.float32, shape=(1,))
+        self.action_space = gym.spaces.Box(low=0, high=1, dtype=np.float32, shape=(1,))
         low = eurusd_df_observations.min(axis=0)
         low = np.tile(low, (window_len, 1))
         high = eurusd_df_observations.max(axis=0)
         high = np.tile(high, (window_len, 1))
-        self.observation_space = gym.spaces.Box(low=low, high=high, shape=(window_len, self.features))
+        self.observation_space = gym.spaces.Box(low=low, high=high)
+        self.leverage = leverage
+        self.positive_multiplier = positive_multiplier
+        self.negative_multiplier = negative_multiplier
 
         # episode variables
         self.episode_tick = 0
         self.cash = 1.0
         self.eurusd = 0.0
+        self.borrowed = 0.0
         self.portfolio_value = 1.0
         self.end_tick = eurusd_df_observations.shape[0] - 1 - window_len
         self.done = False
@@ -432,6 +436,7 @@ class EURUSDTradingEnv(gym.Env):
         self.portfolio_value = 1.0
         self.done = False
         self.previous_portfolio_value = 1.0
+        self.borrowed = 0.0
 
         self.in_cash = []
         self.in_eurusd = []
@@ -463,21 +468,37 @@ class EURUSDTradingEnv(gym.Env):
 
     def perform_action(self, action):
         # calculate portfolio value
-        self.portfolio_value = self.cash + self.eurusd
-        self.eurusd = self.portfolio_value * action
-        self.cash = self.portfolio_value - self.eurusd
+        self.portfolio_value = self.cash + self.eurusd - self.borrowed
+        # self.eurusd = self.portfolio_value * action
+        # money to put in from us
+        our_money = self.portfolio_value * action
+        # money to put in from broker
+        broker_money = our_money * (self.leverage - 1)
+        # money to borrow from broker
+        self.borrowed = broker_money
+        self.eurusd = our_money + broker_money
+        self.cash = self.portfolio_value - our_money
         self.in_cash.append(self.cash)
-        self.in_eurusd.append(self.eurusd)
+        self.in_eurusd.append(our_money)
 
     def calculate_portfolio_value_after_close(self):
         self.previous_portfolio_value = self.portfolio_value
-        self.eurusd *= self.eurusd_real_prices.iloc[self.episode_tick + self.window_len]['close'] / self.eurusd_real_prices.iloc[self.episode_tick + self.window_len - 1]['close']
-        self.portfolio_value = self.cash + self.eurusd
+        self.eurusd *= self.eurusd_real_prices.iloc[self.episode_tick + self.window_len]['close'] / self.eurusd_real_prices.iloc[self.episode_tick + self.window_len]['open']
+        # if eur usd is euqal to broker money then we have to pay back the broker and lose our money
+        if self.eurusd <= self.borrowed:
+            self.eurusd = 0.0
+            self.borrowed = 0.0
+        self.portfolio_value = self.cash + self.eurusd - self.borrowed
         self.portfolio_values.append(self.portfolio_value)
 
     def calculate_reward(self):
         # calculate reward as difference between portfolio value after close and portfolio value before open
-        return float((self.portfolio_value - self.previous_portfolio_value) / self.previous_portfolio_value)
+        percentage_change = float((self.portfolio_value - self.previous_portfolio_value) / self.previous_portfolio_value)
+
+        if percentage_change > 0:
+            return percentage_change * self.positive_multiplier
+        else:
+            return percentage_change * self.negative_multiplier
 
     def render(self, mode="human"):
         print(f"Episode tick: {self.episode_tick}")
