@@ -9,7 +9,15 @@ from typing import List, Tuple, Dict, Union, Optional
 import gc
 
 
-def create_ta_features(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', interval_='1d', fillna=True, scale_to_std=True, fill_weekends=True):
+def create_ta_features(
+    ticker="^GSPC",
+    start_="2010-01-01",
+    end_="2022-12-31",
+    interval_="1d",
+    fillna=True,
+    scale_to_std=True,
+    fill_weekends=True,
+):
     """
     Creates dataframe with technical analysis features
     :param ticker: ticker symbol to download data for (default is S&P 500)
@@ -24,14 +32,27 @@ def create_ta_features(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', i
     # download data
     df = yf.download(ticker, start_, end_, interval=interval_)
     # rename columns
-    df.rename(columns={"Open": "open", "Adj Close": "close", "High": "high", "Low": "low", "Volume": "volume"}, inplace=True)
+    df.rename(
+        columns={
+            "Open": "open",
+            "Adj Close": "close",
+            "High": "high",
+            "Low": "low",
+            "Volume": "volume",
+        },
+        inplace=True,
+    )
     # drop close column
     df.drop("Close", inplace=True, axis=1)
     # fill weekends
     if fill_weekends:
-        df = df.resample('D').ffill()
+        df = df.resample("D").ffill()
     # get all functions in finta
-    finta_functions = [func for func in dir(TA) if callable(getattr(TA, func)) and not func.startswith("__")]
+    finta_functions = [
+        func
+        for func in dir(TA)
+        if callable(getattr(TA, func)) and not func.startswith("__")
+    ]
     # loop through all functions in finta and append the results to the dataframe
     # skip functions that throw errors
     for func in finta_functions:
@@ -41,12 +62,13 @@ def create_ta_features(ticker='^GSPC', start_='2010-01-01', end_='2022-12-31', i
             pass
     # fill in missing values
     if fillna:
-        df.fillna(method='bfill', inplace=True)
-        df.fillna(method='ffill', inplace=True)
+        df.fillna(method="bfill", inplace=True)
+        df.fillna(method="ffill", inplace=True)
     # scale to standard deviation, by column
     if scale_to_std:
         df = (df - df.mean()) / df.std()
     return df
+
 
 # function that adds sine and cosine of weekday, monthday, yearday to dataframe
 # takes into account whether the data is daily, hourly, minutely, etc.
@@ -61,7 +83,7 @@ def add_time_features(df):
     # get frequency of data
     freq = pd.infer_freq(df.index)
     # if frequency is daily, assume data includes weekends
-    if freq == 'D':
+    if freq == "D":
         include_weekends = True
     else:
         include_weekends = False
@@ -76,18 +98,18 @@ def add_time_features(df):
         days_in_month = 21
         days_in_year = 250
     # add weekday, monthday, yearday features
-    df['weekday'] = df.index.dayofweek
-    df['monthday'] = df.index.day
-    df['yearday'] = df.index.dayofyear
+    df["weekday"] = df.index.dayofweek
+    df["monthday"] = df.index.day
+    df["yearday"] = df.index.dayofyear
     # add sine and cosine of weekday, monthday, yearday features
-    df['sin_weekday'] = np.sin(2 * np.pi * df['weekday'] / days_in_week)
-    df['cos_weekday'] = np.cos(2 * np.pi * df['weekday'] / days_in_week)
-    df['sin_monthday'] = np.sin(2 * np.pi * df['monthday'] / days_in_month)
-    df['cos_monthday'] = np.cos(2 * np.pi * df['monthday'] / days_in_month)
-    df['sin_yearday'] = np.sin(2 * np.pi * df['yearday'] / days_in_year)
-    df['cos_yearday'] = np.cos(2 * np.pi * df['yearday'] / days_in_year)
+    df["sin_weekday"] = np.sin(2 * np.pi * df["weekday"] / days_in_week)
+    df["cos_weekday"] = np.cos(2 * np.pi * df["weekday"] / days_in_week)
+    df["sin_monthday"] = np.sin(2 * np.pi * df["monthday"] / days_in_month)
+    df["cos_monthday"] = np.cos(2 * np.pi * df["monthday"] / days_in_month)
+    df["sin_yearday"] = np.sin(2 * np.pi * df["yearday"] / days_in_year)
+    df["cos_yearday"] = np.cos(2 * np.pi * df["yearday"] / days_in_year)
     # drop weekday, monthday, yearday features
-    df.drop(['weekday', 'monthday', 'yearday'], inplace=True, axis=1)
+    df.drop(["weekday", "monthday", "yearday"], inplace=True, axis=1)
     return df
 
 
@@ -100,13 +122,15 @@ def sliding_window(df, window_size=10):
     """
     windows = []
     for i in range(len(df) - window_size + 1):
-        windows.append(df.iloc[i:i + window_size])
+        windows.append(df.iloc[i : i + window_size])
     return windows
 
 
 # define encoder class which will take in a sliding window of stock data 2d tensor and transform it into a 1d tensor
 class LinearEncoder(nn.Module):
-    def __init__(self, input_dims: Tuple[int, int], encoding_dim: int, h_dims: List[int]):
+    def __init__(
+        self, input_dims: Tuple[int, int], encoding_dim: int, h_dims: List[int]
+    ):
         super(LinearEncoder, self).__init__()
         # define list of hidden layers
         self.h_layers = nn.ModuleList()
@@ -188,10 +212,13 @@ class SlidingWindowDataset(Dataset):
         return self.df.shape[0] - self.window_size + 1
 
     def __getitem__(self, idx):
-        return torch.tensor(self.df.iloc[idx:idx + self.window_size].values, dtype=torch.float32)
+        return torch.tensor(
+            self.df.iloc[idx : idx + self.window_size].values, dtype=torch.float32
+        )
+
 
 # main
-if __name__ == '__main__':
+if __name__ == "__main__":
     sp500_df = create_ta_features()
     sp500_df = add_time_features(sp500_df)
 
@@ -199,12 +226,10 @@ if __name__ == '__main__':
     all_data_dataloader = DataLoader(all_data_dataset, batch_size=512, shuffle=False)
 
     linear_ae = LinearAE(
-        input_dim=(30, sp500_df.shape[1]),
-        encoding_dim=32,
-        h_dims=[512, 128, 64]
+        input_dim=(30, sp500_df.shape[1]), encoding_dim=32, h_dims=[512, 128, 64]
     )
     # move model to GPU
-    linear_ae = linear_ae.to('cuda')
+    linear_ae = linear_ae.to("cuda")
 
     epochs = 200
     lr = 3e-4
@@ -212,7 +237,7 @@ if __name__ == '__main__':
     losses = []
     for epoch in range(epochs):
         for batch in all_data_dataloader:
-            batch = batch.to('cuda')
+            batch = batch.to("cuda")
             output = linear_ae(batch)
             loss = nn.functional.mse_loss(output, batch)
             optimizer.zero_grad()
@@ -222,4 +247,4 @@ if __name__ == '__main__':
             torch.cuda.empty_cache()
             _ = gc.collect()
 
-        print(f'Epoch: {epoch + 1}, Loss: {loss.item()}')
+        print(f"Epoch: {epoch + 1}, Loss: {loss.item()}")
