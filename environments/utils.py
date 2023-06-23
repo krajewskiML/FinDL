@@ -225,3 +225,16 @@ def create_data(
         test_df = add_time_features(test_df)
 
     return train_df, test_df
+
+
+def get_feature_set(df, feature_set_no=6):
+    first_set = ['open', 'high', 'low', 'close', 'volume', 'sin_weekday', 'cos_weekday', 'sin_monthday', 'cos_monthday',
+                 'sin_yearday', 'cos_yearday', 'sin_hour', 'cos_hour', 'sin_minute', 'cos_minute']
+    second_set = [*first_set, 'HMA', 'STOCH', 'ROC', 'STC', 'MI', 'TRIX', 'RSI', 'CCI', 'VWAP', 'CFI']
+    third_set = [*second_set, 'SMA', 'SMM', 'STOCHD', 'MOM', 'ER', 'ADX', 'SAR', 'VZO', 'BOP', 'EMV']
+    fourth_set = [*third_set, 'ATR', 'EMA', 'UO', 'WILLIAMS', 'FISH', 'PZO', 'COPP', 'CMO', 'TP', 'VFI']
+    fifth_set = [*fourth_set, 'SMMA', 'SSMA', 'KAMA', 'STOCHRSI', 'CHAIKIN', 'MFI', 'IFT_RSI', 'EVSTC', 'TR', 'EFI']
+    sixth_set = [*fifth_set, 'DEMA', 'FRAMA', 'TEMA', 'WMA', 'ZLEMA', 'VAMA', 'TRIMA', 'PERCENT_B', 'AO', 'WOBV', 'FVE',
+                 'SQZMI', 'DYMI', 'EVWMA', 'MSD']
+    feature_sets = [first_set, second_set, third_set, fourth_set, fifth_set, sixth_set]
+    return df[[x for x in df.columns if x in feature_sets[feature_set_no - 1]]]
